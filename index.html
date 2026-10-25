@@ -102,7 +102,8 @@
           letter-spacing: .5em; font-size: 14px; transition: opacity .4s; }
   /* ---------- idle board: tap anywhere to board (also unlocks sound) ---------- */
   .ready .bh { opacity: 1; }
-  #tap { position: fixed; left: 0; right: 0; bottom: 16vh; text-align: center; background: none; border: 0; color: var(--amber);
+  #tap { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+         padding-bottom: 16vh; background: none; border: 0; color: var(--amber); -webkit-user-select: none; user-select: none;
          font: 600 clamp(12px, 3.4vw, 15px) "DIN Alternate", "Avenir Next Condensed", sans-serif; letter-spacing: .32em;
          transition: opacity .5s; cursor: pointer; }
   #tap .zh { font-family: "PingFang SC"; letter-spacing: .3em; margin-left: .6em; }
@@ -137,7 +138,7 @@
   <div class="coord">46.6326° N · 11.7244° E</div>
 </div>
 <div id="bezel"></div>
-<button id="tap"><span class="blink">TAP TO BOARD<span class="zh">点击登机</span></span><small>SOUND ON · 打开声音</small></button>
+<button id="tap"><span class="blink" id="tapt">TAP TO BOARD<span class="zh">点击登机</span></span><small>SOUND ON · 打开声音</small></button>
 <button id="replay" aria-label="replay">↻</button>
 
 <script>
@@ -303,17 +304,47 @@ async function main() {
   $('#replay').classList.add('show');
 }
 
-// idle board with blank flaps; the first tap starts music and animation together
+// idle board with blank flaps. Music and photo are fetched and decoded right away, so the tap only has to
+// unlock audio; then both start on the same tick. Web Audio first (sample-accurate), <audio> as fallback.
 const bgm = $('#bgm');
 const idleRows = build();
 $('#board').classList.add('ready');
-function board() {
+
+const AC = window.AudioContext || window.webkitAudioContext;
+const ctx = AC ? new AC() : null;
+const audioReady = !ctx ? Promise.resolve(null) : fetch('bgm.m4a').then(r => r.arrayBuffer())
+  .then(ab => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej))).catch(() => null);
+const imgReady = $('#img').decode().catch(() => {});
+const SILENT = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+
+let started = false;
+async function board() {
+  if (started) return;
+  started = true;
+  // must run inside the tap: unlock Web Audio, and ask iOS to treat this as media playback (ignore the silent switch)
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  if (ctx) { ctx.resume(); const s = new Audio(SILENT); s.play().catch(() => {}); }
+  else bgm.play().then(() => bgm.pause()).catch(() => {});
+
+  const slow = setTimeout(() => { $('#tapt').textContent = 'BOARDING …'; }, 200);
+  const [buf] = await Promise.all([audioReady, imgReady]);
+  clearTimeout(slow);
   $('#tap').classList.add('off');
-  bgm.currentTime = 0;
-  bgm.play().catch(() => {});
+
+  if (buf && ctx.state !== 'closed') {
+    await ctx.resume().catch(() => {});
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination);
+    src.start(ctx.currentTime + 0.05);
+    await sleep(50);
+  } else {
+    bgm.currentTime = 0;
+    bgm.play().catch(() => {});
+    await new Promise(r => { bgm.addEventListener('playing', r, { once: true }); setTimeout(r, 2500); });
+  }
   main();
 }
-document.addEventListener('click', board, { once: true });
+$('#tap').addEventListener('click', board);
 $('#replay').addEventListener('click', e => { e.stopPropagation(); location.reload(); });
 </script>
 </body>
