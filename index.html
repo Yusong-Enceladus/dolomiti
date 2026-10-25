@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101015">
+<title>Dolomiti</title>
+<link rel="preload" as="image" href="vdf.jpg">
+<style>
+  :root { --bg: #101015; --flap: #1c1c23; --flap2: #22222a; --txt: #f1ede4; --muted: #8b8799; --amber: #f2b44c; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--txt); overflow: hidden;
+               -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  body { font-family: "Avenir Next", "Helvetica Neue", "PingFang SC", sans-serif; }
+
+  /* ---------- departure board ---------- */
+  #board { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+           transition: opacity .9s ease; --cw: calc(min(92vw, 640px) / 25.5); }
+  .panel { width: calc(var(--cw) * 25); }
+  .bh { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 12px;
+        border-bottom: 1px solid #2b2b35; margin-bottom: calc(var(--cw) * 1.1); opacity: 0; transition: opacity .7s; }
+  .bh .t { font-weight: 600; letter-spacing: .32em; font-size: clamp(11px, 3.1vw, 15px); }
+  .bh .t svg { width: 1.2em; height: 1.2em; vertical-align: -.25em; margin-right: .5em; fill: var(--txt); }
+  .bh .z { font-family: "PingFang SC"; letter-spacing: .3em; color: var(--muted); font-size: clamp(11px, 2.9vw, 14px); }
+  .on .bh { opacity: 1; }
+  .row { display: flex; gap: var(--cw); margin-bottom: calc(var(--cw) * 1.25); }
+  .grp { display: flex; flex-direction: column; }
+  .lab { font-size: clamp(8px, 2.2vw, 11px); letter-spacing: .2em; color: var(--muted); margin-bottom: 6px; height: 1.3em;
+         white-space: nowrap; opacity: 0; transition: opacity .6s; }
+  .lab .zh { font-family: "PingFang SC"; letter-spacing: .1em; margin-left: .4em; }
+  .on .lab { opacity: 1; }
+  .cells { display: flex; }
+  .cn { font-family: "PingFang SC"; font-size: clamp(10px, 2.7vw, 13px); letter-spacing: .3em; color: var(--muted);
+        margin-top: 7px; height: 1.4em; opacity: 0; transition: opacity .8s; }
+  .done .cn { opacity: 1; }
+  .cell { position: relative; width: calc(var(--cw) - 2px); height: calc(var(--cw) * 1.5); margin-right: 2px;
+          font: 600 calc(var(--cw) * 1.05) / 1 "DIN Alternate", "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+          perspective: 300px; color: var(--txt); }
+  .cell .h { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; background: var(--flap); }
+  .cell .h span { position: absolute; left: 0; right: 0; height: 200%; display: flex; align-items: center; justify-content: center; }
+  .cell .top, .cell .ft { top: 0; border-radius: 3px 3px 0 0; }
+  .cell .bot, .cell .fb { bottom: 0; border-radius: 0 0 3px 3px; background: var(--flap2); }
+  .cell .top span, .cell .ft span { top: 0; }
+  .cell .bot span, .cell .fb span { bottom: 0; }
+  .cell .ft { transform-origin: 50% 100%; backface-visibility: hidden; z-index: 2; }
+  .cell .fb { transform-origin: 50% 0; transform: rotateX(90deg); backface-visibility: hidden; z-index: 2; }
+  .cell::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(0, 0, 0, .65); z-index: 3; }
+  .cell .ft.go { animation: ft .07s ease-in forwards; }
+  .cell .fb.go { animation: fb .07s .07s ease-out forwards; }
+  @keyframes ft { to { transform: rotateX(-90deg); } }
+  @keyframes fb { from { transform: rotateX(90deg); } to { transform: rotateX(0); } }
+  .amber .cell { color: var(--amber); }
+  .blink { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* ---------- scene ---------- */
+  #scene { position: fixed; inset: 0; opacity: 0; transition: opacity 1s ease;
+           will-change: clip-path; }
+  #scene.expand { transition: opacity 1s ease, clip-path 1.9s cubic-bezier(.7, 0, .2, 1), -webkit-clip-path 1.9s cubic-bezier(.7, 0, .2, 1); }
+  .photo { position: absolute; inset: 0; overflow: hidden; }
+  .photo img { width: 100%; height: 100%; object-fit: cover; object-position: 46% 62%; transform: scale(1.14);
+               filter: brightness(.62) saturate(.55) contrast(1.05);
+               transition: transform 15s cubic-bezier(.2, .6, .2, 1), filter 5.5s ease; }
+  .night { position: absolute; inset: 0; mix-blend-mode: multiply; transition: opacity 5.5s ease;
+           background: linear-gradient(180deg, #1a2050 0%, rgba(40, 48, 110, .5) 50%, rgba(20, 26, 60, .45) 100%); }
+  #stars { position: absolute; left: 0; top: 0; width: 100%; height: 48%; transition: opacity 4s ease; }
+  .glow { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: soft-light; opacity: 0;
+          background: linear-gradient(180deg, rgba(255, 170, 150, 0), rgba(255, 150, 130, .7) 50%, rgba(255, 170, 150, 0)) 0 -90% / 100% 55% no-repeat; }
+  .kb .photo img { transform: scale(1); }
+  .dawn .photo img { filter: brightness(1) saturate(1.04) contrast(1.02); }
+  .dawn .night, .dawn #stars { opacity: 0; }
+  .dawn .glow { animation: glow 6.5s ease-out forwards; }
+  @keyframes glow { 0% { opacity: 0; background-position: 0 -90%; } 30% { opacity: 1; } 100% { opacity: .55; background-position: 0 50%; } }
+
+  .txt { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 10.5vh); text-align: center; color: #fff;
+         text-shadow: 0 2px 16px rgba(10, 12, 50, .35); }
+  .txt > * { opacity: 0; transform: translateY(10px); transition: opacity 1.6s ease, transform 1.6s ease, letter-spacing 3s ease; }
+  .txt .show { opacity: 1; transform: none; }
+  .kicker { font-size: clamp(10px, 2.8vw, 14px); font-weight: 500; letter-spacing: .42em; padding-left: .42em; }
+  .kicker .zh { font-family: "PingFang SC"; letter-spacing: .3em; }
+  .name { font: 500 clamp(34px, 10.6vw, 96px) / 1 Futura, "Avenir Next", "Helvetica Neue", sans-serif;
+          letter-spacing: .14em; padding-left: .14em; margin-top: .32em; }
+  .name.show { letter-spacing: .3em; padding-left: .3em; }
+  .sub { font-size: clamp(10px, 2.9vw, 15px); font-weight: 500; letter-spacing: .38em; padding-left: .38em; margin-top: 1.3em; }
+  .sub .zh { font-family: "Songti SC", "PingFang SC", serif; font-weight: 600; letter-spacing: .3em; }
+  .coord { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 4.5vh); text-align: center;
+           font-size: clamp(9px, 2.4vw, 12px); letter-spacing: .3em; color: rgba(255, 255, 255, .85);
+           text-shadow: 0 1px 6px rgba(0, 0, 0, .4); opacity: 0; transition: opacity 1.6s ease; }
+  .coord.show { opacity: 1; }
+
+  #bezel { position: fixed; pointer-events: none; opacity: 0; border-style: solid; border-color: #d4cfc7;
+           box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), inset 0 0 22px rgba(0, 0, 0, .6), 0 18px 50px rgba(0, 0, 0, .55);
+           transition: opacity 1s ease; }
+  #bezel.expand { transition: all 1.9s cubic-bezier(.7, 0, .2, 1); }
+
+  #replay { position: fixed; right: calc(env(safe-area-inset-right) + 18px); bottom: calc(env(safe-area-inset-bottom) + 18px);
+            width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .45);
+            background: rgba(16, 16, 21, .25); color: #fff; font-size: 18px; opacity: 0; pointer-events: none;
+            transition: opacity 1s; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  #replay.show { opacity: 1; pointer-events: auto; }
+  #wait { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted);
+          letter-spacing: .5em; font-size: 14px; transition: opacity .4s; }
+</style>
+</head>
+<body>
+<div id="wait">· · ·</div>
+
+<div id="board">
+  <div class="panel">
+    <div class="bh">
+      <span class="t"><svg viewBox="0 0 24 24"><path d="M21 15.5v-1.8l-8-5V3.2a1.5 1.5 0 0 0-3 0v5.5l-8 5v1.8l8-2.5v5.2l-2 1.5v1.4l3.5-1 3.5 1v-1.4l-2-1.5V13z" transform="rotate(90 12 12)"/></svg>DEPARTURES</span>
+      <span class="z">出发</span>
+    </div>
+    <div id="rows"></div>
+  </div>
+</div>
+
+<div id="scene">
+  <div class="photo"><img id="img" src="vdf.jpg" alt=""></div>
+  <div class="night"></div>
+  <canvas id="stars"></canvas>
+  <div class="glow"></div>
+  <div class="txt">
+    <div class="kicker">NEXT STOP <span class="zh">· 下一站</span></div>
+    <div class="name">DOLOMITI</div>
+    <div class="sub">VAL DI FUNES <span class="zh">· 富内斯山谷</span></div>
+  </div>
+  <div class="coord">46.6326° N · 11.7244° E</div>
+</div>
+<div id="bezel"></div>
+<button id="replay" aria-label="replay">↻</button>
+
+<script>
+const ROWS = [
+  { date: '2025.01', to: 'SAPPORO',  st: 'LANDED',   cn: ['札幌', '已抵达'] },
+  { date: '2025.10', to: 'SYDNEY',   st: 'LANDED',   cn: ['悉尼', '已抵达'] },
+  { date: 'NEXT',    to: 'DOLOMITI', st: 'BOARDING', cn: ['多洛米蒂', '登机中'], amber: true },
+];
+const W = { date: 7, to: 8, st: 8 };
+const LABELS = { date: ['DATE', '日期'], to: ['TO', '目的地'], st: ['STATUS', '状态'] };
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = s => document.querySelector(s);
+
+function makeCell() {
+  const c = document.createElement('div');
+  c.className = 'cell';
+  c.innerHTML = '<div class="h top"><span></span></div><div class="h bot"><span></span></div>' +
+                '<div class="h ft"><span></span></div><div class="h fb"><span></span></div>';
+  c.cur = ' ';
+  return c;
+}
+
+function flip(c, next) {
+  const [top, bot, ft, fb] = [...c.children].map(h => h.firstChild);
+  const cur = c.cur;
+  top.textContent = next; bot.textContent = cur; ft.textContent = cur; fb.textContent = next;
+  const a = c.children[2], b = c.children[3];
+  a.classList.remove('go'); b.classList.remove('go'); void a.offsetWidth;
+  a.classList.add('go'); b.classList.add('go');
+  c.cur = next;
+  return sleep(150).then(() => {
+    bot.textContent = next; ft.textContent = next;
+    a.classList.remove('go'); b.classList.remove('go');
+  });
+}
+
+async function spin(c, target, delay) {
+  await sleep(delay);
+  const n = target === ' ' ? 2 : 5 + Math.floor(Math.random() * 7);
+  for (let i = 0; i < n; i++) await flip(c, CHARS[Math.floor(Math.random() * CHARS.length)]);
+  await flip(c, target);
+}
+
+function build() {
+  const host = $('#rows');
+  return ROWS.map((r, ri) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const groups = {};
+    for (const k of ['date', 'to', 'st']) {
+      const g = document.createElement('div');
+      g.className = 'grp' + (k === 'st' && r.amber ? ' amber' : '');
+      const lab = document.createElement('div');
+      lab.className = 'lab';
+      if (ri === 0) lab.innerHTML = `${LABELS[k][0]}<span class="zh">${LABELS[k][1]}</span>`;
+      else lab.style.display = 'none';
+      const cells = document.createElement('div');
+      cells.className = 'cells';
+      const list = [];
+      for (let i = 0; i < W[k]; i++) { const c = makeCell(); cells.appendChild(c); list.push(c); }
+      const cn = document.createElement('div');
+      cn.className = 'cn';
+      cn.textContent = k === 'to' ? r.cn[0] : k === 'st' ? r.cn[1] : '';
+      g.append(lab, cells, cn);
+      row.appendChild(g);
+      groups[k] = { el: g, cells: list, text: r[k].padEnd(W[k]) };
+    }
+    host.appendChild(row);
+    return { row, groups, amber: r.amber };
+  });
+}
+
+async function runRow(r) {
+  const jobs = [];
+  let i = 0;
+  for (const k of ['date', 'to', 'st']) {
+    const g = r.groups[k];
+    g.cells.forEach((c, j) => jobs.push(spin(c, g.text[j], (i++) * 45)));
+  }
+  await Promise.all(jobs);
+  r.row.classList.add('done');
+  if (r.amber) r.groups.st.el.querySelector('.cells').classList.add('blink');
+}
+
+function stars() {
+  const cv = $('#stars'), dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  const pts = Array.from({ length: Math.round(w * h / 800) }, () => ({
+    x: Math.random() * w, y: Math.pow(Math.random(), 1.4) * h, r: Math.random() * 1.3 + .35,
+    p: Math.random() * 6.28, s: .6 + Math.random() * 1.8 }));
+  let alive = true;
+  (function frame(t) {
+    if (!alive) return;
+    g.clearRect(0, 0, w, h);
+    for (const s of pts) {
+      const fade = 1 - s.y / h * .85;
+      g.globalAlpha = (.55 + .45 * Math.sin(s.p + t / 1000 * s.s)) * fade;
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(s.x, s.y, s.r, 0, 6.283); g.fill();
+    }
+    requestAnimationFrame(frame);
+  })(0);
+  return () => { alive = false; };
+}
+
+function windowRect() {
+  const vw = innerWidth, vh = innerHeight;
+  const h = Math.min(vh * .56, vw * .62 * 1.42), w = h / 1.42, r = w * .4;
+  return { x: (vw - w) / 2, y: (vh - h) / 2, w, h, r };
+}
+
+function setClip(el, v) { el.style.clipPath = v; el.style.webkitClipPath = v; }
+
+async function main() {
+  const img = $('#img');
+  try { await img.decode(); } catch (e) {}
+  $('#wait').style.opacity = 0;
+  await sleep(300);
+
+  // 1 — departure board
+  const rows = build();
+  $('#board').classList.add('on');
+  await sleep(700);
+  const flips = [];
+  for (const r of rows) { flips.push(runRow(r)); await sleep(1100); }
+  await Promise.all(flips);
+  await sleep(1900);
+
+  // 2 — a plane window at night
+  const scene = $('#scene'), bezel = $('#bezel'), win = windowRect(), B = 14;
+  setClip(scene, `inset(${win.y}px ${win.x}px ${win.y}px ${win.x}px round ${win.r}px)`);
+  Object.assign(bezel.style, { left: win.x - B + 'px', top: win.y - B + 'px', width: win.w + 2 * B + 'px',
+                               height: win.h + 2 * B + 'px', borderRadius: win.r + B + 'px', borderWidth: B + 'px' });
+  const stopStars = stars();
+  $('#board').style.opacity = 0;
+  await sleep(1000);
+  scene.style.opacity = 1; bezel.style.opacity = 1;
+  await sleep(2800);
+
+  // 3 — through the window
+  scene.classList.add('expand'); bezel.classList.add('expand');
+  void scene.offsetWidth;
+  setClip(scene, 'inset(0px 0px 0px 0px round 0px)');
+  Object.assign(bezel.style, { left: -B + 'px', top: -B + 'px', width: innerWidth + 2 * B + 'px',
+                               height: innerHeight + 2 * B + 'px', borderRadius: B + 'px' });
+  setTimeout(() => { bezel.style.opacity = 0; }, 1500);
+  scene.classList.add('kb');
+  await sleep(1200);
+
+  // 4 — dawn on the Odle
+  scene.classList.add('dawn');
+  setTimeout(stopStars, 4500);
+  await sleep(3000);
+
+  // 5 — title
+  const t = [...document.querySelectorAll('.txt > *')];
+  t[0].classList.add('show'); await sleep(700);
+  t[1].classList.add('show'); await sleep(1200);
+  t[2].classList.add('show'); await sleep(1000);
+  $('.coord').classList.add('show'); await sleep(1600);
+  $('#replay').classList.add('show');
+}
+
+$('#replay').addEventListener('click', () => location.reload());
+if (location.hash !== '#still') main();
+</script>
+</body>
+</html>
