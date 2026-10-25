@@ -115,8 +115,7 @@
   .btns { display: flex; flex-direction: column; gap: 12px; width: min(84vw, 340px); }
   .btns a, .btns button { display: block; text-align: center; text-decoration: none; font: 600 15px "Avenir Next", "PingFang SC", sans-serif;
           letter-spacing: .06em; padding: 14px 0; border-radius: 12px; border: 0; cursor: pointer; }
-  #music { background: #e2404a; color: #fff; }
-  #go { background: transparent; color: var(--txt); box-shadow: inset 0 0 0 1px #3a3a46; }
+  #go { background: var(--txt); color: var(--bg); }
   #gate .hint { font-family: "PingFang SC"; font-size: 11.5px; color: var(--muted); letter-spacing: .08em; text-align: center; line-height: 1.7; }
 </style>
 </head>
@@ -125,11 +124,11 @@
   <div class="k">BOARDING MUSIC<span class="zh">· 登机音乐</span></div>
   <div class="track"><div class="disc"></div><div><div class="ti">Rollin' On</div><div class="ar">椅子乐团 The Chairs</div></div></div>
   <div class="btns">
-    <a id="music" href="https://y.music.163.com/m/song?id=574925512">♪ 在网易云播放</a>
-    <button id="go">登机 →</button>
+    <button id="go">点击登机 →</button>
   </div>
-  <div class="hint">先放上音乐，再回到这里点登机</div>
+  <div class="hint">建议打开声音</div>
 </div>
+<audio id="bgm" src="bgm.m4a" preload="auto"></audio>
 <div id="wait">· · ·</div>
 
 <div id="board">
@@ -320,16 +319,16 @@ async function main() {
   $('#replay').classList.add('show');
 }
 
-// gate: open the song in NetEase Cloud Music (app if installed, else the mobile page), then board
-$('#music').addEventListener('click', e => {
-  e.preventDefault();
-  const web = e.currentTarget.href;
-  location.href = 'orpheus://song/574925512';
-  setTimeout(() => { if (!document.hidden) location.href = web; }, 1500);
-});
-$('#go').addEventListener('click', () => { $('#gate').classList.add('off'); main(); }, { once: true });
-$('#replay').addEventListener('click', () => { location.hash = 'go'; location.reload(); });
-if (location.hash === '#go') { $('#gate').classList.add('off'); main(); }
+// gate: one tap unlocks sound on phones, then music and animation start together
+const bgm = $('#bgm');
+function board() {
+  $('#gate').classList.add('off');
+  bgm.volume = 1; bgm.currentTime = 0;
+  bgm.play().catch(() => {});
+  main();
+}
+$('#go').addEventListener('click', board, { once: true });
+$('#replay').addEventListener('click', () => location.reload());
 </script>
 </body>
 </html>
